@@ -18,19 +18,43 @@ st.caption(
     "အသံဖိုင်ထဲမှာ ပြောထားတဲ့ စကားအကုန်လုံးကို စာသား (Full Text) အဖြစ် ပြန်ထုတ်ပေးပြီး .md / .docx ဖိုင်ဖြင့် သိမ်းဆည်းနိုင်ပါသည်။"
 )
 
+secret_api_key = ""
+try:
+    secret_api_key = st.secrets.get("GEMINI_API_KEY", "")
+except Exception:
+    secret_api_key = ""
+
 with st.sidebar:
     st.header("Settings")
+    engine = st.selectbox(
+        "Transcription Engine",
+        options=["gemini", "whisper"],
+        index=0,
+        help="Streamlit Cloud မှာ memory မပြည့်စေရန် 'gemini' ကို သုံးတာ အဆင်ပြေဆုံးပါ။",
+    )
     language_code = st.selectbox(
         "Audio Language",
         options=["my", "en"],
         index=0,
     )
-    whisper_model = st.selectbox(
-        "Whisper Model",
-        options=["tiny", "base", "small", "medium", "large"],
-        index=1,
-        help="Streamlit Cloud မှာ memory မပြည့်စေရန် 'tiny' သို့မဟုတ် 'base' ကို ရွေးပါ။",
-    )
+
+    if engine == "gemini":
+        gemini_model = st.text_input("Gemini Model", value="gemini-2.5-flash")
+        gemini_key = st.text_input(
+            "Gemini API Key (Secrets မှာ ထည့်ထားရင် မထည့်လည်း ရပါတယ်)",
+            value=secret_api_key,
+            type="password",
+        )
+        whisper_model = "base"
+    else:
+        whisper_model = st.selectbox(
+            "Whisper Model",
+            options=["tiny", "base"],
+            index=1,
+            help="Free Streamlit Cloud မှာ memory ကျော်နိုင်တဲ့အတွက် tiny သို့မဟုတ် base ပဲ ရွေးပါ။",
+        )
+        gemini_model = "gemini-2.5-flash"
+        gemini_key = ""
 
 uploaded_file = st.file_uploader(
     "Upload meeting audio or video",
@@ -39,7 +63,6 @@ uploaded_file = st.file_uploader(
 
 
 def _build_export_buffers(full_text: str) -> tuple[bytes, bytes, str, str]:
-    """Build in-memory .md and .docx bytes for the full transcribed text."""
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     md_filename = f"full_transcript_{stamp}.md"
     docx_filename = f"full_transcript_{stamp}.docx"
@@ -69,11 +92,14 @@ if uploaded_file is not None:
 
         try:
             with st.status("Processing recording...", expanded=True) as status:
-                st.write("Transcribing full audio with Whisper...")
+                st.write("Transcribing full audio...")
                 full_text = transcribe_audio(
-                    temp_audio_path,
-                    model_size=whisper_model,
+                    audio_path=temp_audio_path,
+                    engine=engine,
+                    model_name=gemini_model,
+                    whisper_model=whisper_model,
                     language=language_code,
+                    api_key=gemini_key,
                 )
                 status.update(label="Full text ready!", state="complete")
 
