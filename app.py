@@ -1,3 +1,5 @@
+import gc
+import io
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +19,7 @@ st.caption(
     "Upload a Myanmar meeting recording, transcribe it with Whisper, and export structured minutes."
 )
 
-# Sidebar settings
+# Sidebar settings (default to 'base' to stay within Streamlit Cloud memory limits)
 with st.sidebar:
     st.header("Settings")
     language_code = st.selectbox(
@@ -28,7 +30,8 @@ with st.sidebar:
     whisper_model = st.selectbox(
         "Whisper Model",
         options=["tiny", "base", "small", "medium", "large"],
-        index=2,
+        index=1,
+        help="Use 'tiny' or 'base' on free Streamlit Cloud to avoid out-of-memory errors.",
     )
     llm_model = st.text_input("Ollama Model", value="llama3.2")
     ollama_url = st.text_input("Ollama URL", value="http://localhost:11434")
@@ -37,6 +40,23 @@ uploaded_file = st.file_uploader(
     "Upload meeting audio or video",
     type=["mp3", "wav", "m4a", "mp4", "ogg", "webm"],
 )
+
+
+def _build_export_buffers(minutes_text: str) -> tuple[bytes, bytes, str, str]:
+    """Build in-memory .md and .docx bytes without leaving extra disk files on every rerun."""
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    md_filename = f"meeting_minutes_{stamp}.md"
+    docx_filename = f"meeting_minutes_{stamp}.docx"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        md_file = save_markdown(minutes_text, tmp_path / md_filename)
+        docx_file = save_docx(minutes_text, tmp_path / docx_filename)
+        md_bytes = md_file.read_bytes()
+        docx_bytes = docx_file.read_bytes()
+
+    return md_bytes, docx_bytes, md_filename, docx_filename
+
 
 if uploaded_file is not None:
     st.audio(uploaded_file)
@@ -64,8 +84,14 @@ if uploaded_file is not None:
                 )
                 status.update(label="Meeting minutes ready!", state="complete")
 
+            md_bytes, docx_bytes, md_name, docx_name = _build_export_buffers(minutes)
             st.session_state["transcript"] = transcript
             st.session_state["minutes"] = minutes
+            st.session_state["md_bytes"] = md_bytes
+            st.session_state["docx_bytes"] = docx_bytes
+            st.session_state["md_name"] = md_name
+            st.session_state["docx_name"] = docx_name
+            gc.collect()
         finally:
             Path(temp_audio_path).unlink(missing_ok=True)
 
@@ -74,29 +100,34 @@ if "minutes" in st.session_state:
 
     with tab1:
         edited_minutes = st.text_area(
-            "Review or edit generated minutes before downloading:",
+            "Review or edit generated minutes:",
             value=st.session_state["minutes"],
             height=380,
         )
 
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = Path("outputs")
-        md_path = save_markdown(edited_minutes, out_dir / f"meeting_minutes_{stamp}.md")
-        docx_path = save_docx(edited_minutes, out_dir / f"meeting_minutes_{stamp}.docx")
+        if edited_minutes != st.session_state["minutes"]:
+            st.session_state["minutes"] = edited_minutes
+            md_bytes, docx_bytes, md_name, docx_name = _build_export_buffers(
+                edited_minutes
+            )
+            st.session_state["md_bytes"] = md_bytes
+            st.session_state["docx_bytes"] = docx_bytes
+            st.session_state["md_name"] = md_name
+            st.session_state["docx_name"] = docx_name
 
         col1, col2 = st.columns(2)
         with col1:
             st.download_button(
                 label="Download Markdown (.md)",
-                data=md_path.read_bytes(),
-                file_name=md_path.name,
+                data=io.BytesIO(st.session_state["md_bytes"]),
+                file_name=st.session_state["md_name"],
                 mime="text/markdown",
             )
         with col2:
             st.download_button(
                 label="Download Word (.docx)",
-                data=docx_path.read_bytes(),
-                file_name=docx_path.name,
+                data=io.BytesIO(st.session_state["docx_bytes"]),
+                file_name=st.session_state["docx_name"],
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
 
