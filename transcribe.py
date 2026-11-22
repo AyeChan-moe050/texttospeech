@@ -1,10 +1,11 @@
 import gc
 import mimetypes
 import os
+import time
 from pathlib import Path
 import streamlit as st
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 import whisper
 
 
@@ -18,8 +19,9 @@ def transcribe_with_gemini(
     api_key: str,
     model_name: str = "gemini-3.8-flash",
     language: str = "my",
+    max_retries: int = 3,
 ) -> str:
-    """Transcribe Myanmar audio directly via Gemini API with low local memory usage."""
+    """Transcribe Myanmar audio directly via Gemini API with retry and fallback on 503."""
     resolved_key = (api_key or os.getenv("GEMINI_API_KEY", "")).strip()
     if not resolved_key:
         raise ValueError(
@@ -41,15 +43,42 @@ def transcribe_with_gemini(
 
     client = genai.Client(api_key=resolved_key)
     audio_bytes = path.read_bytes()
+    contents = [
+        types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+        lang_instruction,
+    ]
 
-    response = client.models.generate_content(
-        model=model_name,
-        contents=[
-            types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-            lang_instruction,
-        ],
+    # Try chosen model first, then fallback models if 503 persists
+    candidate_models = [model_name]
+    for fallback in ("gemini-3.5-flash-lite", "gemini-2.5-flash"):
+        if fallback not in candidate_models:
+            candidate_models.append(fallback)
+
+    last_error: Exception | None = None
+    for current_model in candidate_models:
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = client.models.generate_content(
+                    model=current_model,
+                    contents=contents,
+                )
+                return (response.text or "").strip()
+            except errors.APIError as exc:
+                last_error = exc
+                is_temporary = exc.code in (429, 500, 503, 504)
+                if is_temporary and attempt < max_retries:
+                    time.sleep(2 * attempt)
+                    continue
+                if is_temporary:
+                    break
+                raise
+            except Exception as exc:
+                last_error = exc
+                raise
+
+    raise RuntimeError(
+        f"Gemini server မှာ လောလောဆယ် ဝန်ပိနေပါသေးတယ်။ ခဏနေမှ ပြန်စမ်းကြည့်ပါ။ ({last_error})"
     )
-    return (response.text or "").strip()
 
 
 def transcribe_with_whisper(
