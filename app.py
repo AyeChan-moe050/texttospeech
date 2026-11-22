@@ -39,7 +39,7 @@ with st.sidebar:
     )
 
     if engine == "gemini":
-        gemini_model = st.text_input("Gemini Model", value="gemini-2.5-flash")
+        gemini_model = st.text_input("Gemini Model", value="gemini-3.8-flash")
         gemini_key = st.text_input(
             "Gemini API Key (Secrets မှာ ထည့်ထားရင် မထည့်လည်း ရပါတယ်)",
             value=secret_api_key,
@@ -53,7 +53,7 @@ with st.sidebar:
             index=1,
             help="Free Streamlit Cloud မှာ memory ကျော်နိုင်တဲ့အတွက် tiny သို့မဟုတ် base ပဲ ရွေးပါ။",
         )
-        gemini_model = "gemini-2.5-flash"
+        gemini_model = "gemini-3.8-flash"
         gemini_key = ""
 
 uploaded_file = st.file_uploader(
