@@ -1,4 +1,5 @@
-streamlit>=1.40.0
 openai-whisper
-torch
-numpy
+python-docx
+python-dotenv
+requests
+streamlit
