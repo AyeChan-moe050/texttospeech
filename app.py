@@ -3,9 +3,9 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 
-from src.export_doc import save_docx, save_markdown
-from src.summarize import generate_minutes
-from src.transcribe import transcribe_audio
+from export_doc import save_docx, save_markdown
+from summarize import generate_minutes
+from transcribe import transcribe_audio
 
 st.set_page_config(page_title="Meeting Minutes Generator", page_icon="📝", layout="wide")
 st.title("📝 Speech-to-Text Meeting Minutes Generator")
