@@ -19,7 +19,12 @@ st.caption(
     "Upload a Myanmar meeting recording, transcribe it with Whisper, and export structured minutes."
 )
 
-# Sidebar settings (default to 'base' to stay within Streamlit Cloud memory limits)
+secret_gemini_key = ""
+try:
+    secret_gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+except Exception:
+    secret_gemini_key = ""
+
 with st.sidebar:
     st.header("Settings")
     language_code = st.selectbox(
@@ -33,8 +38,28 @@ with st.sidebar:
         index=1,
         help="Use 'tiny' or 'base' on free Streamlit Cloud to avoid out-of-memory errors.",
     )
-    llm_model = st.text_input("Ollama Model", value="llama3.2")
-    ollama_url = st.text_input("Ollama URL", value="http://localhost:11434")
+
+    st.divider()
+    st.subheader("Minutes LLM")
+    llm_provider = st.selectbox(
+        "Provider",
+        options=["gemini", "ollama"],
+        index=0,
+        help="Use 'gemini' on Streamlit Cloud; 'ollama' requires a reachable Ollama server.",
+    )
+
+    if llm_provider == "gemini":
+        llm_model = st.text_input("Gemini Model", value="gemini-3.5-flash-lite")
+        gemini_api_key = st.text_input(
+            "Gemini API Key (optional if set in Secrets)",
+            value=secret_gemini_key,
+            type="password",
+        )
+        ollama_url = "http://localhost:11434"
+    else:
+        llm_model = st.text_input("Ollama Model", value="llama3.2")
+        ollama_url = st.text_input("Ollama URL", value="http://localhost:11434")
+        gemini_api_key = ""
 
 uploaded_file = st.file_uploader(
     "Upload meeting audio or video",
@@ -79,7 +104,9 @@ if uploaded_file is not None:
                 st.write("2/2 Structuring meeting minutes...")
                 minutes = generate_minutes(
                     transcript,
+                    provider=llm_provider,
                     model=llm_model,
+                    api_key=gemini_api_key,
                     ollama_url=ollama_url,
                 )
                 status.update(label="Meeting minutes ready!", state="complete")
@@ -92,6 +119,8 @@ if uploaded_file is not None:
             st.session_state["md_name"] = md_name
             st.session_state["docx_name"] = docx_name
             gc.collect()
+        except Exception as exc:
+            st.error(f"Error while generating minutes: {exc}")
         finally:
             Path(temp_audio_path).unlink(missing_ok=True)
 
