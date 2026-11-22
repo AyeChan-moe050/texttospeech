@@ -16,7 +16,7 @@ def _load_whisper_model(model_size: str):
 def transcribe_with_gemini(
     audio_path: str,
     api_key: str,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-3.8-flash",
     language: str = "my",
 ) -> str:
     """Transcribe Myanmar audio directly via Gemini API with low local memory usage."""
@@ -29,7 +29,7 @@ def transcribe_with_gemini(
     path = Path(audio_path)
     mime_type, _ = mimetypes.guess_type(path.name)
     if not mime_type:
-        mime_type = "audio/mpeg"
+        mime_type = "audio/mp4" if path.suffix.lower() == ".m4a" else "audio/mpeg"
 
     lang_instruction = (
         "အောက်ပါ အသံဖိုင်ထဲမှာ ပြောထားတဲ့ စကားလုံးအားလုံးကို မြန်မာစာ (Unicode) ဖြင့် "
@@ -72,7 +72,7 @@ def transcribe_with_whisper(
 def transcribe_audio(
     audio_path: str,
     engine: str = "gemini",
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-3.8-flash",
     whisper_model: str = "base",
     language: str = "my",
     api_key: str = "",
