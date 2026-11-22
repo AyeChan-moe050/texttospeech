@@ -7,17 +7,28 @@ from export_doc import save_docx, save_markdown
 from summarize import generate_minutes
 from transcribe import transcribe_audio
 
-st.set_page_config(page_title="Meeting Minutes Generator", page_icon="📝", layout="wide")
+st.set_page_config(
+    page_title="Myanmar Meeting Minutes Generator",
+    page_icon="📝",
+    layout="wide",
+)
 st.title("📝 Speech-to-Text Meeting Minutes Generator")
-st.caption("Upload a meeting recording, transcribe it with Whisper, and export structured minutes.")
+st.caption(
+    "Upload a Myanmar meeting recording, transcribe it with Whisper, and export structured minutes."
+)
 
 # Sidebar settings
 with st.sidebar:
     st.header("Settings")
+    language_code = st.selectbox(
+        "Audio Language",
+        options=["my", "en"],
+        index=0,
+    )
     whisper_model = st.selectbox(
         "Whisper Model",
         options=["tiny", "base", "small", "medium", "large"],
-        index=1,
+        index=2,
     )
     llm_model = st.text_input("Ollama Model", value="llama3.2")
     ollama_url = st.text_input("Ollama URL", value="http://localhost:11434")
@@ -39,7 +50,11 @@ if uploaded_file is not None:
         try:
             with st.status("Processing recording...", expanded=True) as status:
                 st.write("1/2 Transcribing audio with Whisper...")
-                transcript = transcribe_audio(temp_audio_path, model_size=whisper_model)
+                transcript = transcribe_audio(
+                    temp_audio_path,
+                    model_size=whisper_model,
+                    language=language_code,
+                )
 
                 st.write("2/2 Structuring meeting minutes...")
                 minutes = generate_minutes(
